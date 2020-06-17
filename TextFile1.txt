@@ -1,0 +1,88 @@
+
+
+select reservationID, pickupLocationID 
+from reservation
+where pickupDate = '2015-05-01';
+
+select distinct c.firstName, c.lastName, c.mobile
+from customers as c, reservation as r, car_type as t, car 
+where c.customerID=r.customerID and r.carID=car.carID and car.typeID=t.typeID and t.typeLabel='Luxury';
+
+select pickupLocationID, count(carID)
+from reservation 
+group by pickupLocationID;
+
+select car.typeID,  extract(year from r.pickupDate) "Year", extract(month from r.pickupDate) "Month", count(r.carID) "No. of Cars"
+from  reservation as r, car
+where r.carID=car.carID 
+group by car.typeID, year, month
+order by car.typeID ASC, year ASC, month ASC;
+
+create view State as
+select o.state, t.typeLabel, count(reservationID) as rentals
+from reservation as r, CRC_office as o, car as c, car_type as t
+where r.pickupLocationID=o.locationID and r.carID=c.carID and c.typeID=t.typeID 
+group by o.state, c.typeID
+order by o.state, rentals DESC;
+
+select state, typeLabel , max(rentals) 
+from State
+group by state;
+
+create view transpose as
+select o.state, count(r.reservationID) as rentals
+from reservation as r, CRC_office as o
+where r.pickupLocationID=o.locationID and (o.state="NY" or o.state="NJ" or o.state="CA") and extract(year from r.pickupDate)=2015 and extract(month from r.pickupDate)=5
+group by o.state; 
+
+select 
+  sum(if(state = 'NY', rentals, 0)) AS 'NY', 
+  sum(if(state = 'NJ', rentals, 0)) AS 'NJ', 
+  sum(if(state = 'CA', rentals, 0)) AS 'CA'
+        from transpose;
+
+SELECT year(a.pickupdate) as yr, month(a.pickupDate) as mnth, count(a.reservationID) as counter
+FROM reservation as a
+WHERE year(a.pickupDate)=2015 and a.amount > 
+(SELECT avg(b.amount)
+from reservation as b
+where month(a.pickupDate)=month(b.pickupDate) and year(a.pickupDate)=year(b.pickupDate) 
+group by month(b.pickupDate))
+group by month(a.pickupDate)
+
+select year(pickupdate) as yr, month(pickupDate) as mnth, count(reservationID) as counter
+from reservation
+where amount>all
+(select avg(amount)
+from reservation
+group by month(pickupDate))
+and reservationID in
+(select reservationID 
+from reservation
+where year(pickupDate)=2015 )
+group by month(pickupDate);
+
+SELECT year(t.pickupdate) as yr, month(t.pickupdate) as mnth, ROUND((t.amount- l.amount) * 100 / 
+       t.amount, 2) as percent
+FROM      reservation as l
+INNER JOIN reservation as t 
+ON month(t.pickupdate) = month(l.pickupdate) AND year(l.pickupdate) = year(t.pickupdate) - 1 where year(t.pickupdate)=2015;
+
+
+select cumTi-ti as prevMonths, ti as thisMonth, cumulativeTotal-cumTi as nextMonths  from
+	(SELECT 
+			year(b.pickupdate) AS yr, month(b.pickupdate) AS mnth,
+			sum(b.amount) AS ti, (select sum(amount) from reservation where year(pickupdate)=2015) as cumulativeTotal,
+
+				(SELECT   
+						 sum(a.amount) as cumTi 
+					  FROM reservation as a
+					  WHERE month(a.pickupdate) <= mnth and year(a.pickupdate)=yr
+                      GROUP BY mnth ASC
+				)as cumTi
+
+            FROM reservation AS b
+			where year(b.pickupdate)=2015 
+			GROUP BY month(b.pickupdate) ASC
+		) as tiandTi
+
